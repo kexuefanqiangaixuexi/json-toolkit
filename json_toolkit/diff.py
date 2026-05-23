@@ -13,25 +13,27 @@ def flatten(obj, prefix=""):
         items.append((prefix, obj))
     return items
 
-def diff_files(file_a, file_b):
+def diff_files(file_a, file_b, output_format="diff"):
     with open(file_a) as a, open(file_b) as b:
         data_a, data_b = json.load(a), json.load(b)
     flat_a = dict(flatten(data_a))
     flat_b = dict(flatten(data_b))
     diffs = []
-    for k in set(flat_a) | set(flat_b):
+    for k in sorted(set(flat_a) | set(flat_b)):
         if k not in flat_a:
-            diffs.append(f"+ {k}: {flat_b[k]}")
+            diffs.append({"path": k, "op": "add", "value": flat_b[k]})
         elif k not in flat_b:
-            diffs.append(f"- {k}: {flat_a[k]}")
+            diffs.append({"path": k, "op": "remove", "old": flat_a[k]})
         elif flat_a[k] != flat_b[k]:
-            diffs.append(f"~ {k}: {flat_a[k]} -> {flat_b[k]}")
-    return "\n".join(diffs)
-
-def main():
-    import argparse
-    p = argparse.ArgumentParser()
-    p.add_argument("file_a")
-    p.add_argument("file_b")
-    args = p.parse_args()
-    print(diff_files(args.file_a, args.file_b))
+            diffs.append({"path": k, "op": "change", "old": flat_a[k], "new": flat_b[k]})
+    if output_format == "json":
+        return json.dumps(diffs, indent=2, ensure_ascii=False)
+    lines = []
+    for d in diffs:
+        if d["op"] == "add":
+            lines.append(f"+ {d['path']}: {d['value']}")
+        elif d["op"] == "remove":
+            lines.append(f"- {d['path']}: {d['old']}")
+        else:
+            lines.append(f"~ {d['path']}: {d['old']} -> {d['new']}")
+    return "\n".join(lines)
